@@ -6,7 +6,8 @@ import torch
 import copy
 import cv2
 from torchmetrics.classification import (
-    Accuracy, F1Score, Precision, Recall, ConfusionMatrix)
+    Accuracy, F1Score, Precision, Recall, ConfusionMatrix
+)
 from load_data import get_dataloaders
 
 
@@ -32,9 +33,9 @@ def train(dataloaders, model, criterion, optimizer, scheduler, n_epochs, n_class
     # macro F1 score provides a better measure of the model's overall performance on all classes.
     acc = Accuracy(task="multiclass", num_classes=3).to(device)
     f1 = F1Score(task="multiclass", average="macro",
-                 num_classes=n_classes).to(device)
+                    num_classes=n_classes).to(device)
     precision = Precision(task="multiclass", average='macro',
-                          num_classes=n_classes).to(device)
+                            num_classes=n_classes).to(device)
     recall = Recall(task="multiclass", average='macro',
                     num_classes=n_classes).to(device)
 
@@ -48,10 +49,8 @@ def train(dataloaders, model, criterion, optimizer, scheduler, n_epochs, n_class
         print(f'Epoch {epoch}/{n_epochs - 1}')
 
         for phase in ["train", "val"]:
-            if phase == "train":
-                model.train()
-            else:
-                model.eval()
+            if phase == "train": model.train()
+            else: model.eval()
 
             running_loss = 0.0
             running_corrects = 0
@@ -68,9 +67,9 @@ def train(dataloaders, model, criterion, optimizer, scheduler, n_epochs, n_class
                     loss = criterion(output, label)
                     _, preds = torch.max(output, dim=1)
 
-                    if phase == "train":
-                        loss.backward()
-                        optimizer.step()
+                if phase == "train":
+                    loss.backward()
+                    optimizer.step()
 
                 running_loss += loss.item() * img.size(0)
                 running_corrects += torch.sum(preds == label.data)
@@ -112,9 +111,9 @@ def get_train_transform():
         A.Resize(width=IMAGENET_RES[0], height=IMAGENET_RES[1]),
         A.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
         A.OneOf([
-            A.Rotate(limit=20, p=0.35, border_mode=cv2.BORDER_CONSTANT),
-            A.HorizontalFlip(p=0.65)],
-            p=0.75),
+        A.Rotate(limit=20, p=0.35, border_mode=cv2.BORDER_CONSTANT),
+        A.HorizontalFlip(p=0.65)],
+        p=0.75),
         A.RGBShift(r_shift_limit=5, g_shift_limit=5, b_shift_limit=5, p=0.75)
     ])
     return transform
@@ -134,15 +133,14 @@ def get_test_transform():
 
 if __name__ == "__main__":
     annot_files = ["classification_frames/annotations_train.json",
-                   "classification_frames/annotations_val.json",
-                   "classification_frames/annotations_test.json"]
+                    "classification_frames/annotations_val.json",
+                    "classification_frames/annotations_test.json"]
 
     dataloaders, ds_labels, labels_ds = get_dataloaders(
         data_dir="../../data",
         annot_files=annot_files,
         class_weights=[1/34792, 1/4620, 1/3970],
-        transforms=[get_train_transform(), get_test_transform(),
-                    get_test_transform()],
+        transforms=[get_train_transform(), get_test_transform(), get_test_transform()],
         batch_size=32
     )
 

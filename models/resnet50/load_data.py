@@ -51,8 +51,7 @@ def get_dataloaders(
         annots = json.load(open(os.path.join(data_dir, annot_files[idx])))
         img_paths = list(annots.keys())
         labels = list(annots.values())
-        dataset = DriverStateDataset(
-            data_dir, img_paths, labels, ds_labels, transform=transforms[idx])
+        dataset = DriverStateDataset(data_dir, img_paths, labels, ds_labels, transform=transforms[idx])
         datasets.append(dataset)
 
     # compute sample weights
@@ -62,10 +61,8 @@ def get_dataloaders(
         sample_weights.append(class_weights[label])
 
     # oversample the minority classes in the **training set**
-    sampler = WeightedRandomSampler(
-        sample_weights, num_samples=len(datasets[0]), replacement=True)
+    sampler = WeightedRandomSampler(sample_weights, num_samples=len(datasets[0]), replacement=True)
     train_dataloder = DataLoader(datasets[0], batch_size, sampler=sampler)
     val_dataloader = DataLoader(datasets[1], batch_size)
     test_dataloader = DataLoader(datasets[2], batch_size)
-
     return {"train": train_dataloder, "val": val_dataloader, "test": test_dataloader}, ds_labels, labels_ds
