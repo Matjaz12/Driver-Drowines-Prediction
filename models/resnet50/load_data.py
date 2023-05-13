@@ -39,7 +39,6 @@ def get_dataloaders(
     transforms: list = [None, None, None], batch_size: int = 32
 ):
     """Get train, validation and test dataloader."""
-
     assert len(transforms) == 3, "transforms must be a list of length 3 (train trans, val trans, test trans)"
     assert len(annot_files) == 3, "annot_files must be a list of length 3 (train annot, val annot, test annot)"
 
@@ -66,3 +65,48 @@ def get_dataloaders(
     val_dataloader = DataLoader(datasets[1], batch_size)
     test_dataloader = DataLoader(datasets[2], batch_size)
     return {"train": train_dataloder, "val": val_dataloader, "test": test_dataloader}, ds_labels, labels_ds
+
+
+def get_dataloader(
+    data_dir, annot_file, transform, batch_size: int = 32
+):
+    """Get data-loader."""
+    annots = json.load(open(os.path.join(data_dir, annot_files[idx])))
+    img_paths = list(annots.keys())
+    labels = list(annots.values())
+    dataset = DriverStateDataset(data_dir, img_paths, labels, ds_labels, transform)
+
+    return DataLoader(dataset, batch_size)
+
+
+def get_train_transform():
+    """Get the train transform."""
+    IMAGENET_RES = (224, 224)
+    IMAGENET_MEAN = (0.485, 0.456, 0.406)
+    IMAGENET_STD = (0.229, 0.224, 0.225)
+    transform = A.Compose([
+        A.RGBShift(r_shift_limit=5, g_shift_limit=5, b_shift_limit=5, p=0.75),
+        A.Resize(width=IMAGENET_RES[0], height=IMAGENET_RES[1]),
+        A.OneOf([
+        A.Rotate(limit=20, p=0.35, border_mode=cv2.BORDER_CONSTANT),
+        A.HorizontalFlip(p=0.65)], p=0.75),
+        A.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
+    ])
+    return transform
+
+
+def get_test_transform():
+    """Get the test transform."""
+    IMAGENET_RES = (224, 224)
+    IMAGENET_MEAN = (0.485, 0.456, 0.406)
+    IMAGENET_STD = (0.229, 0.224, 0.225)
+    transform = A.Compose([
+        A.Resize(width=IMAGENET_RES[0], height=IMAGENET_RES[1]),
+        A.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD)
+    ])
+    return transform
+
+
+def get_basic_transform():
+    """Get the basic transform (only resizes the image)."""
+    return A.Compose([A.Resize(width=224, height=224)])
