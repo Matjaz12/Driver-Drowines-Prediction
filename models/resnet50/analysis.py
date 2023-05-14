@@ -1,41 +1,39 @@
-import json
 import copy
+import json
+import os
 
+import albumentations as A
 import cv2
+import matplotlib.pyplot as plt
+import numpy as np
 import torch
 import torch.nn as nn
-from torchvision import models
+from captum.attr import GuidedGradCam
 from torch.optim import lr_scheduler
-import albumentations as A
-from captum import GuidedGradCam
-from torchmetrics.classification import (
-    Accuracy, F1Score, Precision,
-    Recall, ConfusionMatrix
-)
-from load_data import (
-    get_dataloaders, get_train_transform,
-    get_test_transform, get_basic_transform, 
-    get_dataloader
-)
+from torchmetrics.classification import (Accuracy, ConfusionMatrix, F1Score,
+                                         Precision, Recall)
+from torchvision import models
+from tqdm import tqdm
 
+from load_data import (get_basic_transform, get_dataloader, load_driver_data, get_dataloaders,
+                       get_test_transform, get_train_transform, ds_labels, annot_files)
 from resnet50 import load_resnet50
 
-def test_model(model, dataloader, n_classes=3):
-    """Test the model on unseen data."""
 
+def test_model(model, dataloader, ds_labels, n_classes=3):
+    """Test the model on unseen data."""
+    print("testing model...")
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model.eval()
     model = model.to(device)
     n_samples = len(dataloader.dataset)
-
-    # compute the following stats
     acc_fun = Accuracy(task="multiclass", num_classes=3).to(device)
     f1_fun = F1Score(task="multiclass", average="macro", num_classes=n_classes).to(device)
     precision_fun = Precision(task="multiclass", average='macro', num_classes=n_classes).to(device)
     recall_fun = Recall(task="multiclass", average='macro', num_classes=n_classes).to(device)
     acc, f1, precision, recall = 0.0, 0.0, 0.0, 0.0
     preds_all, label_all = [], []
-    
+
     for img, label in tqdm(dataloader, desc="Testing the model."):
         img, label = img.to(device), label.to(device)
         preds = model(img).argmax(dim=1)        
@@ -43,7 +41,7 @@ def test_model(model, dataloader, n_classes=3):
         label_all.append(label)
     preds_all = torch.cat(preds_all, dim=0)
     label_all = torch.cat(label_all, dim=0)
-    
+
     # compute over all predictions and labels
     acc = acc_fun(preds_all, label_all)
     f1 = f1_fun(preds_all, label_all)
@@ -54,24 +52,33 @@ def test_model(model, dataloader, n_classes=3):
     cm_fun = ConfusionMatrix(task="multiclass", num_classes=3).to(device)
     cm = cm_fun(preds_all, label_all)
     print(cm)
-    plt.imshow(cm.to("cpu").numpy(), interpolation='nearest', cmap=plt.cm.Blues)
+    plt.figure()
+    plt.imshow(cm.to("cpu").numpy(), interpolation='nearest')
     plt.title('Confusion matrix')
     plt.colorbar()
     tick_marks = np.arange(len(ds_labels))
     plt.xticks(tick_marks, list(ds_labels.keys()), rotation=45)
     plt.yticks(tick_marks, list(ds_labels.keys()))
+    thresh = cm.max() / 2.
+    for i in range(cm.shape[0]):
+        for j in range(cm.shape[1]):
+            plt.text(j, i, format(cm[i, j], "d"),
+                     ha="center", va="center",
+                     color="white" if cm[i, j] > thresh else "black")
+    plt.tight_layout()
     plt.ylabel('True label')
     plt.xlabel('Predicted label')
     plt.tight_layout()
-    plt.savefig("./img/cm.pdf")
+    plt.savefig("./results/cm.pdf")
+    return preds_all, label_all
 
 
-def plot_preds(preds_all, labels_all, ds_labels, dataloder, rows=3, cols=3):
+def plot_preds(preds_all, ds_labels, dataloder, rows=3, cols=3):
     """Plot the worst *k* predictions"""
+    print("plotting predictions...")
     def img_tensor_to_img(img_t):
         """Convert a batch of image tensors to a batch of images."""
         return img_t.numpy().transpose(0, 2, 3, 1)
-    
     k = rows * cols
     wrong_idx = torch.where(preds_all != label_all)[0]
     wrong_idx = wrong_idx[torch.randint(low=0, high=len(wrong_idx), size=(k, ))]
@@ -92,63 +99,47 @@ def plot_preds(preds_all, labels_all, ds_labels, dataloder, rows=3, cols=3):
                 f"label: {labels_ds[labels[i * rows + j].item()]}, pred: {labels_ds[preds[i * rows + j].item()]}")
             axes[i, j].set_xticks([])
             axes[i, j].set_yticks([])
-
     plt.tight_layout()
-    plt.savefig("./fails.pdf")
-    plt.show()
+    plt.savefig("./results/fails.pdf")
 
-
-def plot_lr_vs_loss():
+def plot_lr_vs_loss(dataloaders):
     """Plot learning rate vs loss, used to determine decent learning rate."""
-
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    # Load the model
     model = load_resnet50(n_classes=len(ds_labels))
     model = model.to(device)
-
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
     # define a set of lr-values
     lre = torch.linspace(-4, -1, 1000)
     lrs = 10 ** lre
-
     n_iters = len(lrs)
     lri = []
     losses = []
-
     for k in tqdm(range(n_iters)):
-        # sample a random batch of data
         img_b, label_b = next(iter(dataloaders["train"]))
         img_b, label_b = img_b.to(device), label_b.to(device)
 
-        # compute the loss
         output = model(img_b)
         loss = criterion(output, label_b)
-        # print(loss.item())
-
-        # do the backward-pass
         optimizer.zero_grad()
         loss.backward()
-
-        # change the learning rate of the optimizer and update the model
         for param_group in optimizer.param_groups: param_group['lr'] = lrs[k].item()
         optimizer.step()
-
-        # store the current learning rate and losses
-        lri.append(lre[k].item())
+        lri.append(lre[k].item())  # store the current learning rate and losses
         losses.append(loss.item())
-
+    plt.figure()
     plt.plot(lre, losses)
     plt.title("Learnig rate vs Loss.")
     plt.xlabel("learning rate exponent")
     plt.ylabel("loss")
     plt.tight_layout()
-    plt.savefig("./img/lr_vs_loss.pdf")
+    plt.savefig("./results/lr_vs_loss.pdf")
 
 
 def plot_guided_grad_cam(model, dataloder1, dataloder2, rows=3, cols=3):
     """Compute pixel importance (i.e grad of loss w.r.t each pixel) for `k` random images."""
+    print("plotting guided gradcam...")
     def img_tensor_to_img(img_t):
         """Convert a batch of image tensors to a batch of images."""
         return img_t.numpy().transpose(0, 2, 3, 1)
@@ -175,51 +166,77 @@ def plot_guided_grad_cam(model, dataloder1, dataloder2, rows=3, cols=3):
             axes[i, j].imshow(imgs_real[i * rows + j], alpha=0.15)
             axes[i, j].set_xticks([])
             axes[i, j].set_yticks([])
-
     plt.tight_layout()
-    plt.savefig("./grad_cam.pdf")
+    plt.savefig("./results/grad_cam.pdf")
     plt.show()
     
 
-if __name__ == "__main__":
-    # test on the validation set
-    model = load_resnet50(n_classes=len(ds_labels))
-    state_dict = torch.load(f"/kaggle/input/resnet50/resnet50_ds.pt")
-    model.load_state_dict(state_dict)
+def load_history():
+    """Load trainig history."""
+    print("loading training history...")
+    losses, f1s = {}, {}
+    losses["train"] = np.load(open("./results/losses_train.npy", "rb"))
+    losses["val"] = np.load(open("./results/losses_val.npy", "rb"))
+    f1s["train"] = np.load(open("./results/f1s_train.npy", "rb"))
+    f1s["val"] = np.load(open("./results/f1s_val.npy", "rb"))
+    return losses, f1s
 
-    plt.plot(list(range(N_EPOCHS)), losses["train"], label="train")
-    plt.plot(list(range(N_EPOCHS)), losses["val"], label="val")
+
+def plot_history(losses, f1s):
+    """Plot training history."""
+    print("Plotting training history...")
+    plt.figure()
+    plt.plot(np.arange(len(losses["train"])), losses["train"], label="train")
+    plt.plot(np.arange(len(losses["val"])), losses["val"], label="val")
     plt.title("Loss vs Epochs")
     plt.xlabel("Epoch")
     plt.ylabel("CE Loss")
     plt.legend()
     plt.tight_layout()
-    plt.savefig(f"./img/loss_vs_epochs.pdf")
+    plt.savefig(f"./results/loss_vs_epochs.pdf")
 
-    plt.plot(list(range(N_EPOCHS)), f1s["train"], label="train")
-    plt.plot(list(range(N_EPOCHS)), f1s["val"], label="val")
+    plt.figure()
+    plt.plot(np.arange(len(f1s["train"])), f1s["train"], label="train")
+    plt.plot(np.arange(len(f1s["val"])), f1s["val"], label="val")
     plt.title("F1-Score vs Epochs")
     plt.xlabel("Epoch")
     plt.ylabel("F1")
     plt.legend()
     plt.tight_layout()
-    plt.savefig(f"./img/f1_vs_epochs.pdf")
+    plt.savefig(f"./results/f1_vs_epochs.pdf")
 
-    model = load_resnet50(n_classes=N_CLASSES)
-    preds_all, label_all = test_model(model, dataloaders["test"])
-    
-    test_dataloder = get_dataloader(
+
+if __name__ == "__main__":
+    # load params and history
+    params = json.load(open(os.path.join(os.getcwd(), "hyper_params.json")))
+    losses, f1s = load_history()
+    plot_history(losses, f1s)
+
+    # load (trained) model weights
+    print("loading model...")
+    model = load_resnet50(n_classes=params["n_classes"])
+    state_dict = torch.load(f"./resnet50_ds.pt")
+    model.load_state_dict(state_dict)
+
+    # test model
+
+    test_dataloader_t = get_dataloader(
         data_dir="../../data",
-        annot_files=annot_files[-1],
-        transform=get_basic_transform(),
-        batch_size=BATCH_SIZE
+        annot_file=annot_files[-1],
+        transform=get_test_transform(),
+        ds_labels = ds_labels,
+        batch_size=params["batch_size"]
     )
-
-    plot_preds(
-        preds_all, label_all, ds_labels, test_dataloader, rows=3, cols=3)
-
-
-    test_dataloader1 = get_testdataloader(batch_size=32, transform=get_test_transform())
-    test_dataloader2 = get_testdataloader(batch_size=32, transform=A.Compose([A.Resize(width=224, height=224)]))
-    plot_guided_grad_cam(model, test_dataloader1, test_dataloader2, rows=3, cols=3)
+    preds_all, label_all = test_model(model, test_dataloader_t, ds_labels)
+    
+    # plot model predictions
+    test_dataloader_b = get_dataloader(
+        data_dir="../../data",
+        annot_file=annot_files[-1],
+        transform=get_basic_transform(),
+        ds_labels = {"alert": 0, "microsleep": 1, "yawning": 2},
+        batch_size=params["batch_size"]
+    )
+    plot_preds(preds_all, ds_labels, test_dataloader_b)
+    plot_guided_grad_cam(model, test_dataloader_t, test_dataloader_b)
     

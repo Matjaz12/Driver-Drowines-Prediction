@@ -2,13 +2,14 @@
 python3 annotator.py frames/P1043080_720 frames/P1043080_720/annotations.json
 """
 
+import argparse
+import json
+import os
+
 import cv2
 import matplotlib.pyplot as plt
-import argparse
-import os
-from tqdm import tqdm
-import json
 from show_annotations import draw_bboxes, draw_landmarks
+from tqdm import tqdm
 
 
 def display_gui(img, bbox, landmarks, driver_state, frame, seq):

@@ -2,12 +2,13 @@
 python3 show_annotations.py frames/P1043080_720 frames/P1043080_720/annotations.json
 """
 
+import argparse
+import json
+import os
+
 import cv2
 import matplotlib.pyplot as plt
-import argparse
-import os
 from tqdm import tqdm
-import json
 
 
 def draw_bboxes(im, bboxes):

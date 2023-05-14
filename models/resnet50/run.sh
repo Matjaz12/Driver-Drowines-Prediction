@@ -1,6 +1,6 @@
 #!/bin/sh
 #SBATCH --job-name=dl_proj # job name
-##SBATCH --output=slurm_out.txt # file name to redirect the output
+#SBATCH --output=slurm_out.log
 ## SBATCH --time=02:00:00 # job time limit - full format is D-H:M:S
 #SBATCH --nodes=1 # number of nodes
 #SBATCH --gres=gpu:1 # number of gpus

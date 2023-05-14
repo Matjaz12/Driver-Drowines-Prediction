@@ -1,13 +1,19 @@
-import os
-import albumentations as A
-from albumentations.pytorch import ToTensorV2
-import torch
-from torch.utils.data import Dataset, DataLoader, random_split
-from torch.utils.data.sampler import WeightedRandomSampler
-import cv2
 import json
+import os
+
+import albumentations as A
+import cv2
+import torch
+from albumentations.pytorch import ToTensorV2
+from torch.utils.data import DataLoader, Dataset, random_split
+from torch.utils.data.sampler import WeightedRandomSampler
 from tqdm import tqdm
 
+
+ds_labels = {"alert": 0, "microsleep": 1, "yawning": 2}
+annot_files = ["classification_frames/annotations_train.json",
+            "classification_frames/annotations_val.json",
+            "classification_frames/annotations_test.json"]
 
 class DriverStateDataset(Dataset):
     """Driver state (classification) dataset"""
@@ -43,7 +49,6 @@ def get_dataloaders(
     assert len(annot_files) == 3, "annot_files must be a list of length 3 (train annot, val annot, test annot)"
 
     # create datasets
-    ds_labels = {"alert": 0, "microsleep": 1, "yawning": 2}
     labels_ds = {v:k for k,v in ds_labels.items()}
     datasets = []
     for idx in range(3):
@@ -68,15 +73,28 @@ def get_dataloaders(
 
 
 def get_dataloader(
-    data_dir, annot_file, transform, batch_size: int = 32
+    data_dir, annot_file, transform, ds_labels, batch_size: int = 32
 ):
     """Get data-loader."""
-    annots = json.load(open(os.path.join(data_dir, annot_files[idx])))
+    annots = json.load(open(os.path.join(data_dir, annot_file)))
     img_paths = list(annots.keys())
     labels = list(annots.values())
     dataset = DriverStateDataset(data_dir, img_paths, labels, ds_labels, transform)
 
     return DataLoader(dataset, batch_size)
+
+
+def load_driver_data(params):
+    """Load driver state data."""
+    print(f"params: {params}")
+    dataloaders, ds_labels, labels_ds = get_dataloaders(
+        data_dir="../../data",
+        annot_files=annot_files,
+        class_weights=[1/38967, 1/8869, 1/5495],
+        transforms=[get_train_transform(), get_test_transform(), get_test_transform()],
+        batch_size=params["batch_size"]
+    )
+    return dataloaders, ds_labels, labels_ds
 
 
 def get_train_transform():

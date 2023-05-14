@@ -1,26 +1,27 @@
 import copy
 import json
+import os
 
 import cv2
+import numpy as np
 import torch
 import torch.nn as nn
-from torchvision import models
-from torch.optim import lr_scheduler
-from torchmetrics.classification import (
-    Accuracy, F1Score, Precision,
-    Recall, ConfusionMatrix
-)
-from load_data import (
-    get_dataloaders, get_train_transform,
-    get_test_transform, get_basic_transform, 
-    get_dataloader
-)
-
+from load_data import (get_basic_transform, get_dataloaders,
+                       get_test_transform, get_train_transform,
+                       load_driver_data)
 from resnet50 import load_resnet50
+from torch.optim import lr_scheduler
+from torchmetrics.classification import (Accuracy, ConfusionMatrix, F1Score,
+                                         Precision, Recall)
+from torchvision import models
 
 
-def train(dataloaders, model, criterion, optimizer, scheduler, n_epochs, n_classes=3):
-    """Train the model (ref: https://pytorch.org/tutorials/beginner/transfer_learning_tutorial.html)"""
+def train(
+    dataloaders, model, criterion, optimizer, scheduler,
+    n_epochs, n_classes=3, model_path="./resnet50_ds.pt"
+):
+    """Train and save the model with the highest f1-score on the validation set."""
+
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(f"device: {device}")
 
@@ -94,31 +95,29 @@ def train(dataloaders, model, criterion, optimizer, scheduler, n_epochs, n_class
             if phase == 'val' and epoch_f1 > best_f1_score:
                 best_f1_score = epoch_f1
                 best_model_wts = copy.deepcopy(model.state_dict())
-                torch.save(best_model_wts.state_dict(), "./resnet50_ds.pt")
 
     # load best model weights
     model.load_state_dict(best_model_wts)
+    torch.save(model.state_dict(), model_path)
     return model, losses, f1s
 
-if __name__ == "__main__":
-    print("what?")
-    params = json.load(open(os.path.join(os.getcwd(), "hyper_params.json")))
-    print(f"params: {params}")
-    annot_files = ["classification_frames/annotations_train.json",
-                    "classification_frames/annotations_val.json",
-                    "classification_frames/annotations_test.json"]
-    dataloaders, ds_labels, labels_ds = get_dataloaders(
-        data_dir="../../data",
-        annot_files=annot_files,
-        class_weights=[1/38967, 1/8869, 1/5495],
-        transforms=[get_train_transform(), get_test_transform(), get_test_transform()],
-        batch_size=params["batch_size"]
-    )
-    print(f"ds_labels: {ds_labels}")
 
+def save_history(losses, f1s):
+    """Save training history."""
+    print("Saveing training history...")
+    np.save(open("./results/losses_train.npy", "wb"), np.array(losses["train"]))
+    np.save(open("./results/losses_val.npy", "wb"), np.array(losses["val"]))
+    np.save(open("./results/f1s_train.npy", "wb"), np.array(f1s["train"]))
+    np.save(open("./results/f1s_val.npy", "wb"), np.array(f1s["val"]))
+
+
+if __name__ == "__main__":
+    params = json.load(open(os.path.join(os.getcwd(), "hyper_params.json")))
+    dataloaders, ds_labels, labels_ds = load_driver_data(params)
     model = load_resnet50(n_classes=params["n_classes"])
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=params["learning_rate"], weight_decay=params["weight_decay"])
+    scheduler = lr_scheduler.StepLR(optimizer, step_size=params["step_size"], gamma=0.1)
     model, losses, f1s = train(
         dataloaders, model, criterion, optimizer, scheduler, n_epochs=params["n_epochs"])
-    torch.save(model.state_dict(), "./resnet50_ds.pt")
+    save_history(losses, f1s)
