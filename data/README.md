@@ -1,6 +1,6 @@
 # Frame Level Classification Dataset (FLC Dataset)
 
-Final (annotated) dataset is available here: [Driver Drowsiness Prediction](https://www.kaggle.com/datasets/matjazmuc/driver-drowsiness-prediction)
+Final (annotated) dataset is available here: [Frame Level Driver Drowsiness Prediction](https://www.kaggle.com/datasets/matjazmuc/frame-level-driver-drowsiness-detection)
 
 ## Dataset Annotation
 
