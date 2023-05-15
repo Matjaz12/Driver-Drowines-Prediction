@@ -10,10 +10,17 @@ from torch.utils.data.sampler import WeightedRandomSampler
 from tqdm import tqdm
 
 
+IMAGENET_RES = (224, 224)
+IMAGENET_MEAN = (0.485, 0.456, 0.406)
+IMAGENET_STD = (0.229, 0.224, 0.225)
+CLASS_WEIGHTS = None # [1/38967, 1/8869, 1/5495]
 ds_labels = {"alert": 0, "microsleep": 1, "yawning": 2}
+label_ds = {v:k for k, v in ds_labels.items()}
+ROOT_DIR = "/d/hpc/projects/FRI/DL/mm1706/" # "../../data"
 annot_files = ["classification_frames/annotations_train.json",
             "classification_frames/annotations_val.json",
             "classification_frames/annotations_test.json"]
+
 
 class DriverStateDataset(Dataset):
     """Driver state (classification) dataset"""
@@ -41,7 +48,7 @@ class DriverStateDataset(Dataset):
 
 
 def get_dataloaders(
-    data_dir, annot_files: list, class_weights: list,
+    data_dir, annot_files: list, class_weights: list = None,
     transforms: list = [None, None, None], batch_size: int = 32
 ):
     """Get train, validation and test dataloader."""
@@ -60,13 +67,16 @@ def get_dataloaders(
 
     # compute sample weights
     desc = "Computing sample weights"
-    sample_weights = []
-    for _, label in tqdm(datasets[0], total=len(datasets[0]), desc=desc):
-        sample_weights.append(class_weights[label])
+    if class_weights is not None:
+        sample_weights = []
+        for _, label in tqdm(datasets[0], total=len(datasets[0]), desc=desc):
+            sample_weights.append(class_weights[label])
+        # oversample the minority classes in the training set.
+        sampler = WeightedRandomSampler(sample_weights, num_samples=len(datasets[0]), replacement=True)
+        train_dataloder = DataLoader(datasets[0], batch_size, sampler=sampler)
+    else:
+        train_dataloder = DataLoader(datasets[0], batch_size)
 
-    # oversample the minority classes in the **training set**
-    sampler = WeightedRandomSampler(sample_weights, num_samples=len(datasets[0]), replacement=True)
-    train_dataloder = DataLoader(datasets[0], batch_size, sampler=sampler)
     val_dataloader = DataLoader(datasets[1], batch_size)
     test_dataloader = DataLoader(datasets[2], batch_size)
     return {"train": train_dataloder, "val": val_dataloader, "test": test_dataloader}, ds_labels, labels_ds
@@ -86,11 +96,11 @@ def get_dataloader(
 
 def load_driver_data(params):
     """Load driver state data."""
-    print(f"params: {params}")
+    print(f"loading driver data...")
     dataloaders, ds_labels, labels_ds = get_dataloaders(
-        data_dir="../../data",
+        data_dir=ROOT_DIR,
         annot_files=annot_files,
-        class_weights=[1/38967, 1/8869, 1/5495],
+        class_weights=CLASS_WEIGHTS,
         transforms=[get_train_transform(), get_test_transform(), get_test_transform()],
         batch_size=params["batch_size"]
     )
@@ -99,15 +109,14 @@ def load_driver_data(params):
 
 def get_train_transform():
     """Get the train transform."""
-    IMAGENET_RES = (224, 224)
-    IMAGENET_MEAN = (0.485, 0.456, 0.406)
-    IMAGENET_STD = (0.229, 0.224, 0.225)
     transform = A.Compose([
-        A.RGBShift(r_shift_limit=5, g_shift_limit=5, b_shift_limit=5, p=0.75),
-        A.Resize(width=IMAGENET_RES[0], height=IMAGENET_RES[1]),
         A.OneOf([
-        A.Rotate(limit=20, p=0.35, border_mode=cv2.BORDER_CONSTANT),
-        A.HorizontalFlip(p=0.65)], p=0.75),
+            A.Rotate(limit=20, p=0.70, border_mode=cv2.BORDER_CONSTANT),
+            A.HorizontalFlip(p=0.30)],
+            p=0.75),
+        A.RGBShift(r_shift_limit=5, g_shift_limit=5, b_shift_limit=5, p=0.75),
+        A.RandomBrightnessContrast(brightness_limit=0.1, contrast_limit=0.1, p=0.5),
+        A.Resize(width=IMAGENET_RES[0], height=IMAGENET_RES[1]),
         A.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
     ])
     return transform
@@ -115,9 +124,6 @@ def get_train_transform():
 
 def get_test_transform():
     """Get the test transform."""
-    IMAGENET_RES = (224, 224)
-    IMAGENET_MEAN = (0.485, 0.456, 0.406)
-    IMAGENET_STD = (0.229, 0.224, 0.225)
     transform = A.Compose([
         A.Resize(width=IMAGENET_RES[0], height=IMAGENET_RES[1]),
         A.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD)
@@ -128,3 +134,8 @@ def get_test_transform():
 def get_basic_transform():
     """Get the basic transform (only resizes the image)."""
     return A.Compose([A.Resize(width=224, height=224)])
+
+
+if __name__ == "__main__":
+    params = json.load(open(os.path.join(os.getcwd(), "hyper_params.json")))
+    dataloaders, ds_labels, labels_ds = load_driver_data(params)

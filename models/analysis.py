@@ -3,6 +3,7 @@ import json
 import os
 
 import albumentations as A
+from albumentations.pytorch import ToTensorV2
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
@@ -16,7 +17,7 @@ from torchvision import models
 from tqdm import tqdm
 
 from load_data import (get_basic_transform, get_dataloader, load_driver_data, get_dataloaders,
-                       get_test_transform, get_train_transform, ds_labels, annot_files)
+                       get_test_transform, get_train_transform, ds_labels, label_ds, annot_files)
 from resnet50 import load_resnet50
 
 
@@ -73,7 +74,7 @@ def test_model(model, dataloader, ds_labels, n_classes=3):
     return preds_all, label_all
 
 
-def plot_preds(preds_all, ds_labels, dataloder, rows=3, cols=3):
+def plot_preds(preds_all, label_all, ds_labels, dataloder, rows=3, cols=3):
     """Plot the worst *k* predictions"""
     print("plotting predictions...")
     def img_tensor_to_img(img_t):
@@ -101,6 +102,7 @@ def plot_preds(preds_all, ds_labels, dataloder, rows=3, cols=3):
             axes[i, j].set_yticks([])
     plt.tight_layout()
     plt.savefig("./results/fails.pdf")
+
 
 def plot_lr_vs_loss(dataloaders):
     """Plot learning rate vs loss, used to determine decent learning rate."""
@@ -171,18 +173,18 @@ def plot_guided_grad_cam(model, dataloder1, dataloder2, rows=3, cols=3):
     plt.show()
     
 
-def load_history():
+def load_history(results_dir):
     """Load trainig history."""
     print("loading training history...")
     losses, f1s = {}, {}
-    losses["train"] = np.load(open("./results/losses_train.npy", "rb"))
-    losses["val"] = np.load(open("./results/losses_val.npy", "rb"))
-    f1s["train"] = np.load(open("./results/f1s_train.npy", "rb"))
-    f1s["val"] = np.load(open("./results/f1s_val.npy", "rb"))
+    losses["train"] = np.load(open(f"{results_dir}/losses_train.npy", "rb"))
+    losses["val"] = np.load(open(f"{results_dir}/losses_val.npy", "rb"))
+    f1s["train"] = np.load(open(f"{results_dir}/f1s_train.npy", "rb"))
+    f1s["val"] = np.load(open(f"{results_dir}/f1s_val.npy", "rb"))
     return losses, f1s
 
 
-def plot_history(losses, f1s):
+def plot_history(losses, f1s, results_dir):
     """Plot training history."""
     print("Plotting training history...")
     plt.figure()
@@ -193,7 +195,7 @@ def plot_history(losses, f1s):
     plt.ylabel("CE Loss")
     plt.legend()
     plt.tight_layout()
-    plt.savefig(f"./results/loss_vs_epochs.pdf")
+    plt.savefig(f"{results_dir}/loss_vs_epochs.pdf")
 
     plt.figure()
     plt.plot(np.arange(len(f1s["train"])), f1s["train"], label="train")
@@ -203,23 +205,25 @@ def plot_history(losses, f1s):
     plt.ylabel("F1")
     plt.legend()
     plt.tight_layout()
-    plt.savefig(f"./results/f1_vs_epochs.pdf")
+    plt.savefig(f"{results_dir}/f1_vs_epochs.pdf")
 
 
 if __name__ == "__main__":
     # load params and history
     params = json.load(open(os.path.join(os.getcwd(), "hyper_params.json")))
-    losses, f1s = load_history()
-    plot_history(losses, f1s)
+    losses, f1s = load_history(results_dir="./resnet50/results")
+    plot_history(losses, f1s, results_dir="./resnet50/results")
 
     # load (trained) model weights
     print("loading model...")
     model = load_resnet50(n_classes=params["n_classes"])
-    state_dict = torch.load(f"./resnet50_ds.pt")
+    state_dict = torch.load(f"./resnet50/resnet50_ds.pt")
     model.load_state_dict(state_dict)
+    model.eval()
+    exit()
 
+    """
     # test model
-
     test_dataloader_t = get_dataloader(
         data_dir="../../data",
         annot_file=annot_files[-1],
@@ -237,6 +241,22 @@ if __name__ == "__main__":
         ds_labels = {"alert": 0, "microsleep": 1, "yawning": 2},
         batch_size=params["batch_size"]
     )
-    plot_preds(preds_all, ds_labels, test_dataloader_b)
+    plot_preds(preds_all, label_all, ds_labels, test_dataloader_b)
     plot_guided_grad_cam(model, test_dataloader_t, test_dataloader_b)
-    
+    """
+
+    """
+    def pred_pipeline(imgs, model, transform=get_test_transform()):
+        '''Prediction pipeline.'''
+        preds = []
+        for img in imgs:
+            img = transform(image=img)["image"]
+            img = ToTensorV2()(image=img)["image"].unsqueeze(dim=0)
+            pred = model(img).argmax(dim=1).item()
+            preds.append(label_ds[pred])
+        return preds
+
+    img = cv2.cvtColor(cv2.imread(f"ms.png"), cv2.COLOR_BGR2RGB)
+    preds = pred_pipeline([img], model)
+    print(f"preds: {preds}")
+    """
