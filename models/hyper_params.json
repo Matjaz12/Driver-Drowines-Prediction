@@ -1,8 +1,0 @@
-{
-    "batch_size": 32,
-    "learning_rate": 4e-3,
-    "weight_decay": 1e-5,
-    "n_epochs": 1,
-    "n_classes": 3,
-    "step_size": 10
-}

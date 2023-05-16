@@ -1,0 +1,11 @@
+albumentations
+captum
+matplotlib
+numpy
+retinaface
+rmn
+torch
+torchmetrics
+torchvision
+tqdm
+opencv-python

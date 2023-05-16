@@ -1,3 +1,4 @@
+import argparse
 import copy
 import json
 import os
@@ -17,13 +18,14 @@ from torchvision import models
 from tqdm import tqdm
 
 from load_data import (get_basic_transform, get_dataloader, load_driver_data, get_dataloaders,
-                       get_test_transform, get_train_transform, ds_labels, label_ds, annot_files)
+                       get_test_transform, get_train_transform, ds_labels, label_ds, annot_files, ROOT_DIR)
 from resnet50 import load_resnet50
+from resmasknet import load_resmasknet
 
 
-def test_model(model, dataloader, ds_labels, n_classes=3):
+def test_model(model, dataloader, ds_labels, save_path, n_classes=3):
     """Test the model on unseen data."""
-    print("testing model...")
+    print("testing model...", flush=True)
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model.eval()
     model = model.to(device)
@@ -70,13 +72,14 @@ def test_model(model, dataloader, ds_labels, n_classes=3):
     plt.ylabel('True label')
     plt.xlabel('Predicted label')
     plt.tight_layout()
-    plt.savefig("./results/cm.pdf")
+    save_path = os.path.join(save_path, "cm.pdf")
+    plt.savefig(save_path)
     return preds_all, label_all
 
 
-def plot_preds(preds_all, label_all, ds_labels, dataloder, rows=3, cols=3):
+def plot_preds(preds_all, label_all, ds_labels, dataloder, save_path, rows=3, cols=3):
     """Plot the worst *k* predictions"""
-    print("plotting predictions...")
+    print("plotting predictions...", flush=True)
     def img_tensor_to_img(img_t):
         """Convert a batch of image tensors to a batch of images."""
         return img_t.numpy().transpose(0, 2, 3, 1)
@@ -101,7 +104,8 @@ def plot_preds(preds_all, label_all, ds_labels, dataloder, rows=3, cols=3):
             axes[i, j].set_xticks([])
             axes[i, j].set_yticks([])
     plt.tight_layout()
-    plt.savefig("./results/fails.pdf")
+    save_path = os.path.join(save_path, "fails.pdf")
+    plt.savefig(save_path)
 
 
 def plot_lr_vs_loss(dataloaders):
@@ -121,7 +125,6 @@ def plot_lr_vs_loss(dataloaders):
     for k in tqdm(range(n_iters)):
         img_b, label_b = next(iter(dataloaders["train"]))
         img_b, label_b = img_b.to(device), label_b.to(device)
-
         output = model(img_b)
         loss = criterion(output, label_b)
         optimizer.zero_grad()
@@ -139,9 +142,9 @@ def plot_lr_vs_loss(dataloaders):
     plt.savefig("./results/lr_vs_loss.pdf")
 
 
-def plot_guided_grad_cam(model, dataloder1, dataloder2, rows=3, cols=3):
+def plot_guided_grad_cam(model, dataloder1, dataloder2, save_path, rows=3, cols=3):
     """Compute pixel importance (i.e grad of loss w.r.t each pixel) for `k` random images."""
-    print("plotting guided gradcam...")
+    print("plotting guided gradcam...", flush=True)
     def img_tensor_to_img(img_t):
         """Convert a batch of image tensors to a batch of images."""
         return img_t.numpy().transpose(0, 2, 3, 1)
@@ -169,13 +172,14 @@ def plot_guided_grad_cam(model, dataloder1, dataloder2, rows=3, cols=3):
             axes[i, j].set_xticks([])
             axes[i, j].set_yticks([])
     plt.tight_layout()
-    plt.savefig("./results/grad_cam.pdf")
+    save_path = os.path.join(save_path, "grad_cam.pdf")
+    plt.savefig(save_path)
     plt.show()
     
 
 def load_history(results_dir):
     """Load trainig history."""
-    print("loading training history...")
+    print("loading training history...", flush=True)
     losses, f1s = {}, {}
     losses["train"] = np.load(open(f"{results_dir}/losses_train.npy", "rb"))
     losses["val"] = np.load(open(f"{results_dir}/losses_val.npy", "rb"))
@@ -186,7 +190,7 @@ def load_history(results_dir):
 
 def plot_history(losses, f1s, results_dir):
     """Plot training history."""
-    print("Plotting training history...")
+    print("Plotting training history...", flush=True)
     plt.figure()
     plt.plot(np.arange(len(losses["train"])), losses["train"], label="train")
     plt.plot(np.arange(len(losses["val"])), losses["val"], label="val")
@@ -209,54 +213,51 @@ def plot_history(losses, f1s, results_dir):
 
 
 if __name__ == "__main__":
-    # load params and history
-    params = json.load(open(os.path.join(os.getcwd(), "hyper_params.json")))
-    losses, f1s = load_history(results_dir="./resnet50/results")
-    plot_history(losses, f1s, results_dir="./resnet50/results")
+    # parse arguments
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--model", type=str, required=True, default="resnet50")
+    args = parser.parse_args()
 
-    # load (trained) model weights
-    print("loading model...")
-    model = load_resnet50(n_classes=params["n_classes"])
-    state_dict = torch.load(f"./resnet50/resnet50_ds.pt")
+    # load model and state dict.
+    print(f"loading model {args.model}...", flush=True)
+    if args.model == "resnet50":
+        model = load_resnet50(n_classes=3)
+    elif args.model == "resmasknet":
+        model = load_resmasknet(n_classes=3)
+    else:
+        raise Exception(f"Model: {args.model} not supported!")
+    
+    state_dict_path =f"./{args.model}/{args.model}_ds.pt"
+    print(f"loading state dictionary from {state_dict_path}", flush=True)
+    state_dict = torch.load(state_dict_path)
     model.load_state_dict(state_dict)
     model.eval()
-    exit()
 
-    """
+    # load params and history
+    params = json.load(open(os.path.join(os.getcwd(), "hyper_params.json")))
+    losses, f1s = load_history(results_dir=f"./{args.model}/results")
+    plot_history(losses, f1s, results_dir=f"./{args.model}/results")
+
     # test model
     test_dataloader_t = get_dataloader(
-        data_dir="../../data",
+        data_dir=ROOT_DIR,
         annot_file=annot_files[-1],
         transform=get_test_transform(),
         ds_labels = ds_labels,
         batch_size=params["batch_size"]
     )
-    preds_all, label_all = test_model(model, test_dataloader_t, ds_labels)
+    preds_all, label_all = test_model(
+        model, test_dataloader_t, ds_labels, save_path=f"./{args.model}/results")
     
     # plot model predictions
     test_dataloader_b = get_dataloader(
-        data_dir="../../data",
+        data_dir=ROOT_DIR,
         annot_file=annot_files[-1],
         transform=get_basic_transform(),
         ds_labels = {"alert": 0, "microsleep": 1, "yawning": 2},
         batch_size=params["batch_size"]
     )
-    plot_preds(preds_all, label_all, ds_labels, test_dataloader_b)
-    plot_guided_grad_cam(model, test_dataloader_t, test_dataloader_b)
-    """
 
-    """
-    def pred_pipeline(imgs, model, transform=get_test_transform()):
-        '''Prediction pipeline.'''
-        preds = []
-        for img in imgs:
-            img = transform(image=img)["image"]
-            img = ToTensorV2()(image=img)["image"].unsqueeze(dim=0)
-            pred = model(img).argmax(dim=1).item()
-            preds.append(label_ds[pred])
-        return preds
-
-    img = cv2.cvtColor(cv2.imread(f"ms.png"), cv2.COLOR_BGR2RGB)
-    preds = pred_pipeline([img], model)
-    print(f"preds: {preds}")
-    """
+    plot_preds(preds_all, label_all, ds_labels, test_dataloader_b, save_path=f"./{args.model}/results")
+    plot_guided_grad_cam(model, test_dataloader_t, test_dataloader_b,  save_path=f"./{args.model}/results")
+    

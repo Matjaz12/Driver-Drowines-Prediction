@@ -13,7 +13,7 @@ from tqdm import tqdm
 IMAGENET_RES = (224, 224)
 IMAGENET_MEAN = (0.485, 0.456, 0.406)
 IMAGENET_STD = (0.229, 0.224, 0.225)
-CLASS_WEIGHTS = None # [1/38967, 1/8869, 1/5495]
+CLASS_WEIGHTS = [1/38967, 1/8869, 1/5495]
 ds_labels = {"alert": 0, "microsleep": 1, "yawning": 2}
 label_ds = {v:k for k, v in ds_labels.items()}
 ROOT_DIR = "/d/hpc/projects/FRI/DL/mm1706/" # "../../data"
