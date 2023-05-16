@@ -1,4 +1,4 @@
-# FL-DDD (Frame Level Driver Drowsiness Prediction Dataset) 
+# FL-DDD (Frame Level Driver Drowsiness Detection) 
 
 Final (annotated) dataset is available here: [Frame Level Driver Drowsiness Prediction](https://www.kaggle.com/datasets/matjazmuc/frame-level-driver-drowsiness-detection)
 
