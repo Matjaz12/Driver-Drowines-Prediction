@@ -4,4 +4,4 @@ Implementation of a driver drowsiness prediction system. The [Prediction Pipelin
 
 
 Prediction pipeline output:
-[Microsleep Prediction](./examples/msleep_pred.jpg)
+![Microsleep Prediction](./examples/msleep_pred.jpg)
