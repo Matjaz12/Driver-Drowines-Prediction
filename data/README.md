@@ -1,4 +1,4 @@
-# Frame Level Classification Dataset (FLC Dataset)
+# FL-DDPD (Frame Level Driver Drowsiness Prediction Dataset) 
 
 Final (annotated) dataset is available here: [Frame Level Driver Drowsiness Prediction](https://www.kaggle.com/datasets/matjazmuc/frame-level-driver-drowsiness-detection)
 
