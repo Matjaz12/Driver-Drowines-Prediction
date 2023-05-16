@@ -1,5 +1,6 @@
 import argparse
 import os
+import re
 
 import cv2
 import numpy as np
@@ -30,7 +31,7 @@ class DriverStatePredictor:
     def __call__(self, img):
         """Prediction pipeline."""
         bbox, img_face = self._detect_face(img)
-        if bbox is None: return None
+        if bbox is None: return None, None, None
         driver_state, confidence = self._predict_driver_state(img_face)
         return bbox, driver_state, confidence
 
@@ -57,22 +58,22 @@ class DriverStatePredictor:
         preds = self.driver_state_model(img_face)
         pred = preds.argmax(dim=1).cpu().item()
         confidence = torch.softmax(preds, dim=1)[0][pred].cpu().item()
-        print(confidence)
         return pred, confidence
 
 
 def draw_prediction(frame, dsp):
     """Display prediction on frame."""
     bbox, driver_state, confidence = dsp(frame) # predict driver state
-    if driver_state is None: return frame
+    if bbox is None: return frame, None, None
     topleft = (int(bbox[0]), int(bbox[1]))
     bottomright = (int(bbox[2]), int(bbox[3]))
     frame = cv2.rectangle(frame, topleft, bottomright, (255, 0, 0), 2)
     frame = cv2.putText(
         frame, f"{label_ds[driver_state]}: {round(confidence, 2)}", (topleft[0], topleft[1] - 5),
         cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
-    return frame
+    return frame, bbox, driver_state
     
+
 
 if __name__ == "__main__":
     # parse arguments
@@ -98,16 +99,9 @@ if __name__ == "__main__":
     retinaface.eval()
 
     # define the pred. pipeline object.
-    dsp = DriverStatePredictor(
-        face_detector=retinaface, driver_state_model=model)
-
-    frame = cv2.imread("./example_frame.jpg")
-    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    frame = draw_prediction(frame, dsp)
-    cv2.imwrite("./example_frame_pred.jpg", 
-                cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-
+    dsp = DriverStatePredictor(face_detector=retinaface, driver_state_model=model)
     exit()
+
     # open web-cam and make predictions
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
@@ -120,7 +114,7 @@ if __name__ == "__main__":
             print("Can't receive frame")
             break
         
-        frame = draw_prediction(frame, dsp)
+        frame, bbox, driver_state = draw_prediction(frame, dsp)
         cv2.imshow("frame", frame)
         if cv2.waitKey(1) == ord("q"):
             break

@@ -13,4 +13,4 @@
 ## conda activate dl_env # activate the previously created environment
 source /d/hpc/projects/FRI/DL/mm1706/miniconda3/etc/profile.d/conda.sh # init. conda
 conda activate /d/hpc/projects/FRI/DL/mm1706/miniconda3/envs/dl2_env
-srun --nodes=1 --exclusive --gres=gpu:1 --ntasks=1 python $1 $2
+srun --nodes=1 --exclusive --gres=gpu:1 --ntasks=1 python $1 $2 $3

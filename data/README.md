@@ -8,4 +8,4 @@ We used the [NITYMED](https://datasets.esdalab.ece.uop.gr/download-files/) datas
 
 ## Out Of Distribution (OOD) Dataset
 
-To evaluate models ability to generalize to out of distribution data, we used the following dataset:[roboflow-driver-drowsiness-detection](https://universe.roboflow.com/augmented-startups/drowsiness-detection-cntmz/dataset/1).
+To evaluate models ability to generalize to out of distribution data, we used the following datase:[roboflow-driver-drowsiness-detection](https://universe.roboflow.com/augmented-startups/drowsiness-detection-cntmz/dataset/1).

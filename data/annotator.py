@@ -1,7 +1,3 @@
-"""
-python3 annotator.py frames/P1043080_720 frames/P1043080_720/annotations.json
-"""
-
 import argparse
 import json
 import os
