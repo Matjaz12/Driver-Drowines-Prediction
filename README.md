@@ -8,7 +8,7 @@ To evaluate models ability to generalize to out of distribution data, we used th
 
 ### Example predictions
 
-A set of successful predicitons, you can take a look at the rest of predicitons including failure cases in: [Predicitons](./data/ood/preds/).
+A set of successful predicitons, you can take a look at the rest of predictions including failure cases in: [Predicitons](./data/ood/preds/).
 
 ![Alert](./data/ood/preds/GOPR0492_MP4-207_jpg.rf.59da258fa102fe24e305e0c1dbe869eb.jpg)
 
