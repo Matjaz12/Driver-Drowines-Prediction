@@ -10,9 +10,9 @@ To evaluate models ability to generalize to out of distribution data, we used th
 
 A set of successful predicitons:
 
-![Alert](GOPR0492_MP4-207_jpg.rf.59da258fa102fe24e305e0c1dbe869eb.jpg)
+![Alert](./data/ood/preds/GOPR0492_MP4-207_jpg.rf.59da258fa102fe24e305e0c1dbe869eb.jpg)
 
-![Microsleep](GOPR0492_MP4-117_jpg.rf.93aa7b9daec5cc05c1b082625bb00846.jpg)
+![Microsleep](./data/ood/preds/GOPR0492_MP4-117_jpg.rf.93aa7b9daec5cc05c1b082625bb00846.jpg)
 
 ![Yawn](./data/ood/preds/GOPR0492_MP4-284_jpg.rf.a82162fe42f48ceeed52ebf3bae6785f.jpg)
 
