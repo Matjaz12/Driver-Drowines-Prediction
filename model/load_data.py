@@ -56,7 +56,6 @@ def get_dataloaders(
     assert len(annot_files) == 3, "annot_files must be a list of length 3 (train annot, val annot, test annot)"
 
     # create datasets
-    labels_ds = {v:k for k,v in ds_labels.items()}
     datasets = []
     for idx in range(3):
         annots = json.load(open(os.path.join(data_dir, annot_files[idx])))
@@ -76,10 +75,9 @@ def get_dataloaders(
         train_dataloder = DataLoader(datasets[0], batch_size, sampler=sampler)
     else:
         train_dataloder = DataLoader(datasets[0], batch_size)
-
     val_dataloader = DataLoader(datasets[1], batch_size)
     test_dataloader = DataLoader(datasets[2], batch_size)
-    return {"train": train_dataloder, "val": val_dataloader, "test": test_dataloader}, ds_labels, labels_ds
+    return {"train": train_dataloder, "val": val_dataloader, "test": test_dataloader}, ds_labels, label_ds
 
 
 def get_dataloader(

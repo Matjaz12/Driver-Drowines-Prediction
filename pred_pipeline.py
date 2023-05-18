@@ -74,7 +74,6 @@ def draw_prediction(frame, dsp):
     return frame, bbox, driver_state
     
 
-
 if __name__ == "__main__":
     # parse arguments
     parser = argparse.ArgumentParser()
@@ -100,6 +99,12 @@ if __name__ == "__main__":
 
     # define the pred. pipeline object.
     dsp = DriverStatePredictor(face_detector=retinaface, driver_state_model=model)
+    img_path = os.path.join(f"./dataset-cover.jpg")
+    frame = cv2.imread(img_path)
+    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    frame, bbox, driver_state = draw_prediction(frame, dsp)
+    cv2.imwrite(f"./dataset-cover-pred.jpg",
+        cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
     exit()
 
     # open web-cam and make predictions

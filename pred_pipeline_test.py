@@ -8,6 +8,7 @@ from retinaface.pre_trained_models import get_model
 from pred_pipeline import DriverStatePredictor, draw_prediction
 from model.resmasknet import load_resmasknet
 from model.resnet50 import load_resnet50
+# from model.ensemble import load_ensemble
 from torchvision.ops import box_iou
 from torchmetrics.classification import (Accuracy, ConfusionMatrix, F1Score,
                                          Precision, Recall)
@@ -82,14 +83,18 @@ if __name__ == "__main__":
         model = load_resnet50(n_classes=3)
     elif args.model == "resmasknet":
         model = load_resmasknet(n_classes=3)
+    # elif args.model == "ensemble":
+    #     model = load_ensemble()
     else:
         raise Exception(f"Model: {args.model} not supported!")
     
-    state_dict_path =f"./model/{args.model}/{args.model}_ds.pt"
-    print(f"loading state dictionary from {state_dict_path}", flush=True)
-    state_dict = torch.load(state_dict_path)
-    model.load_state_dict(state_dict)
-    model.eval()
+    if args.model != "ensemble":
+        state_dict_path =f"./model/{args.model}/{args.model}_ds.pt"
+        print(f"loading state dictionary from {state_dict_path}", flush=True)
+        state_dict = torch.load(state_dict_path)
+        model.load_state_dict(state_dict)
+        model.eval()
+    
     retinaface = get_model("resnet50_2020-07-20", max_size=2048, device="cuda")
     retinaface.eval()
 

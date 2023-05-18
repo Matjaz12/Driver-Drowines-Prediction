@@ -23,6 +23,7 @@ from resnet50 import load_resnet50
 from resmasknet import load_resmasknet
 
 
+
 def test_model(model, dataloader, ds_labels, save_path, n_classes=3):
     """Test the model on unseen data."""
     print("testing model...", flush=True)
@@ -56,7 +57,7 @@ def test_model(model, dataloader, ds_labels, save_path, n_classes=3):
     cm = cm_fun(preds_all, label_all)
     print(cm)
     plt.figure()
-    plt.imshow(cm.to("cpu").numpy(), interpolation='nearest')
+    plt.imshow(cm.to("cpu").numpy(), interpolation='nearest', cmap=plt.cm.Blues)
     plt.title('Confusion matrix')
     plt.colorbar()
     tick_marks = np.arange(len(ds_labels))
@@ -108,7 +109,7 @@ def plot_preds(preds_all, label_all, ds_labels, dataloder, save_path, rows=3, co
     plt.savefig(save_path)
 
 
-def plot_lr_vs_loss(dataloaders):
+def plot_lr_vs_loss(dataloaders, save_path):
     """Plot learning rate vs loss, used to determine decent learning rate."""
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model = load_resnet50(n_classes=len(ds_labels))
@@ -139,7 +140,8 @@ def plot_lr_vs_loss(dataloaders):
     plt.xlabel("learning rate exponent")
     plt.ylabel("loss")
     plt.tight_layout()
-    plt.savefig("./results/lr_vs_loss.pdf")
+    save_path = os.path.join(save_path, "lr_vs_loss.pdf")
+    plt.savefig(save_path)
 
 
 def plot_guided_grad_cam(model, dataloder1, dataloder2, save_path, rows=3, cols=3):
@@ -167,8 +169,8 @@ def plot_guided_grad_cam(model, dataloder1, dataloder2, save_path, rows=3, cols=
     fig.suptitle('Guided Grad-CAM', fontsize=16)
     for i in range(rows):
         for j in range(cols):
-            axes[i, j].imshow(attribution[i * rows + j] * 100)
             axes[i, j].imshow(imgs_real[i * rows + j], alpha=0.15)
+            axes[i, j].imshow(attribution[i * rows + j] * 100)
             axes[i, j].set_xticks([])
             axes[i, j].set_yticks([])
     plt.tight_layout()
@@ -236,7 +238,7 @@ if __name__ == "__main__":
     # load params and history
     params = json.load(open(os.path.join(os.getcwd(), "hyper_params.json")))
     losses, f1s = load_history(results_dir=f"./{args.model}/results")
-    plot_history(losses, f1s, results_dir=f"./{args.model}/results")
+    # plot_history(losses, f1s, results_dir=f"./{args.model}/results")
 
     # test model
     test_dataloader_t = get_dataloader(
@@ -258,6 +260,6 @@ if __name__ == "__main__":
         batch_size=params["batch_size"]
     )
 
-    plot_preds(preds_all, label_all, ds_labels, test_dataloader_b, save_path=f"./{args.model}/results")
+    # plot_preds(preds_all, label_all, ds_labels, test_dataloader_b, save_path=f"./{args.model}/results")
     plot_guided_grad_cam(model, test_dataloader_t, test_dataloader_b,  save_path=f"./{args.model}/results")
     
